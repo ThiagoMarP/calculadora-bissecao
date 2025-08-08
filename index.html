@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Raízes - Método da Bisseção</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+        input { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 15px; cursor: pointer; }
+        #resultado { margin-top: 20px; font-weight: bold; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+</head>
+<body>
+    <h1>Calculadora de Raízes - Método da Bisseção</h1>
+    <p>
+        O intervalo de busca da raiz está fixado no código como <strong>[1, 2]</strong>.
+    </p>
+
+    <label for="funcao">Função f(x):</label>
+    <input type="text" id="funcao" value="x^3 - x - 2">
+
+    <label for="precisao">Número de casas decimais para a precisão (ex: 3 para 0.001):</label>
+    <input type="number" id="precisao" value="3">
+
+    <button onclick="calcularRaiz()">Calcular Raiz</button>
+
+    <div id="resultado"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
