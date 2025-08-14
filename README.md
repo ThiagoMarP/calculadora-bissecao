@@ -8,4 +8,4 @@ Inputs do sistema
 - A precisão pode ser colocada como 10 elevado ao numero que fica apos a virgula
 
 Output
--   
+- pontos de intersecção
