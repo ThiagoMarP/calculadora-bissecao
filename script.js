@@ -25,16 +25,14 @@ function calcularRaiz() {
     }
 
     let iteracoes = 1;
-    const maxIteracoes = 1000; 
+    const maxIteracoes = 1000;
     let pontoMedio;
 
     while ((b - a) >= precisao && iteracoes < maxIteracoes) {
         pontoMedio = (a + b) / 2;
-
         if (f(pontoMedio) === 0.0) {
             break;
         }
-
         if (f(a) * f(pontoMedio) < 0) {
             b = pontoMedio;
         } else {
@@ -47,61 +45,86 @@ function calcularRaiz() {
         (Encontrado em ${iteracoes} iterações com precisão de ${precisao})`;
 }
 
-function eliminacaoDeGauss(inputMatriz) {
-  const matriz = inputMatriz.map(row => [...row]);
-  const numLinhas = matriz.length;
-  const numCols = matriz[0].length;
+function decomposicaoLUComPivoteamento(A) {
+    const n = A.length;
+    let L = Array(n).fill(0).map(() => Array(n).fill(0));
+    let U = JSON.parse(JSON.stringify(A)); 
+    let P = Array(n).fill(0).map((_, i) => {
+        let row = Array(n).fill(0);
+        row[i] = 1;
+        return row;
+    });
+    let p = Array(n).fill(0).map((_, i) => i); 
 
-  let lead = 0;
-  for (let r = 0; r < numLinhas; r++) {
-    if (lead >= numCols) {
-      break;
-    }
-
-    let i = r;
-    while (matriz[i][lead] === 0) {
-      i++;
-      if (i === numLinhas) {
-        i = r;
-        lead++;
-        if (numCols === lead) {
-          return matriz;
+    for (let k = 0; k < n; k++) {
+        let maxVal = 0;
+        let maxIdx = k;
+        for (let i = k; i < n; i++) {
+            if (Math.abs(U[i][k]) > maxVal) {
+                maxVal = Math.abs(U[i][k]);
+                maxIdx = i;
+            }
         }
-      }
+
+        if (maxVal === 0) {
+            throw new Error("Matriz singular. O sistema pode não ter solução única.");
+        }
+
+        [U[k], U[maxIdx]] = [U[maxIdx], U[k]];
+        [p[k], p[maxIdx]] = [p[maxIdx], p[k]];
+        [P[k], P[maxIdx]] = [P[maxIdx], P[k]];
+
+        for (let i = 0; i < k; i++) {
+            [L[k][i], L[maxIdx][i]] = [L[maxIdx][i], L[k][i]];
+        }
+
+        for (let i = k + 1; i < n; i++) {
+            const fator = U[i][k] / U[k][k];
+            L[i][k] = fator;
+            for (let j = k; j < n; j++) {
+                U[i][j] -= fator * U[k][j];
+            }
+        }
     }
-    [matriz[i], matriz[r]] = [matriz[r], matriz[i]];
-    let val = matriz[r][lead];
-    for (let j = 0; j < numCols; j++) {
-      matriz[r][j] /= val;
+    for (let i = 0; i < n; i++) {
+        L[i][i] = 1;
     }
 
-    for (let i = 0; i < numLinhas; i++) {
-      if (i !== r) {
-        let val = matriz[i][lead];
-        for (let j = 0; j < numCols; j++) {
-          matriz[i][j] -= val * matriz[r][j];
-        }
-      }
-    }
-    lead++;
-  }
-  return matriz;
+    return { L, U, P, p };
 }
 
-function backSubstitution(matriz) {
-  const numLinhas = matriz.length;
-  const solucao = new Array(numLinhas).fill(0);
+function forwardSubstitution(L, b) {
+    const n = L.length;
+    const y = new Array(n).fill(0);
 
-  for (let i = numLinhas - 1; i >= 0; i--) {
-    solucao[i] = matriz[i][numLinhas];
-    for (let j = i + 1; j < numLinhas; j++) {
-      solucao[i] -= matriz[i][j] * solucao[j];
+    for (let i = 0; i < n; i++) {
+        let sum = 0;
+        for (let j = 0; j < i; j++) {
+            sum += L[i][j] * y[j];
+        }
+        y[i] = b[i] - sum;
     }
-  }
-  return solucao;
+    return y;
 }
 
-//cria a interface para entrada de info da matriz
+function backSubstitution(U, y) {
+    const n = U.length;
+    const x = new Array(n).fill(0);
+
+    for (let i = n - 1; i >= 0; i--) {
+        let sum = 0;
+        for (let j = i + 1; j < n; j++) {
+            sum += U[i][j] * x[j];
+        }
+        if (U[i][i] === 0) {
+            throw new Error("Divisão por zero encontrada. A matriz é singular.");
+        }
+        x[i] = (y[i] - sum) / U[i][i];
+    }
+    return x;
+}
+
+
 function gerarMatrizInputs() {
     const size = parseInt(document.getElementById('matrixSize').value, 10);
     const container = document.getElementById('matrizInput');
@@ -121,8 +144,10 @@ function gerarMatrizInputs() {
     for (let i = 0; i < size; i++) {
         table += '<tr>';
         for (let j = 0; j <= size; j++) {
-            let placeholder = j < size ? `x${j + 1}` : `b${i + 1}`;
-            table += `<td><input type="number" id="m${i}${j}" placeholder="${placeholder}"></td>`;
+            // Adiciona uma barra vertical para separar a matriz A do vetor b
+            const style = (j === size) ? 'border-left: 2px solid #ccc;' : '';
+            const placeholder = j < size ? `x${j + 1}` : `b${i + 1}`;
+            table += `<td style="${style}"><input type="number" id="m${i}${j}" placeholder="${placeholder}"></td>`;
         }
         table += '</tr>';
     }
@@ -131,37 +156,71 @@ function gerarMatrizInputs() {
     resolverBtn.style.display = 'block';
 }
 
+function formatarMatrizParaHTML(titulo, matriz) {
+    let html = `<div class="matriz-resultado"><strong>${titulo}:</strong><table>`;
+    for (const linha of matriz) {
+        html += '<tr>';
+        for (const val of linha) {
+            html += `<td>${val.toFixed(4)}</td>`;
+        }
+        html += '</tr>';
+    }
+    html += '</table></div>';
+    return html;
+}
+
 //lê a matriz da interface, resolve o sistema e exibe o resultado. 
 function resolverSistema() {
     const size = parseInt(document.getElementById('matrixSize').value, 10);
-    const matriz = [];
+    const matrizA = [];
+    const vetorB = [];
     const resultadoDiv = document.getElementById('resultadoGauss');
 
     for (let i = 0; i < size; i++) {
-        const linha = [];
-        for (let j = 0; j <= size; j++) {
+        const linhaA = [];
+        for (let j = 0; j < size; j++) {
             const input = document.getElementById(`m${i}${j}`);
             if (!input.value) {
                 resultadoDiv.innerHTML = "Erro: Por favor, preencha todos os campos da matriz.";
                 return;
             }
-            linha.push(parseFloat(input.value));
+            linhaA.push(parseFloat(input.value));
         }
-        matriz.push(linha);
+        matrizA.push(linhaA);
+
+        const inputB = document.getElementById(`m${i}${size}`);
+        if (!inputB.value) {
+            resultadoDiv.innerHTML = "Erro: Por favor, preencha todos os campos da matriz.";
+            return;
+        }
+        vetorB.push(parseFloat(inputB.value));
     }
-    
+
     try {
-        const matrizEscalonada = eliminacaoDeGauss(matriz);
-        const solucao = backSubstitution(matrizEscalonada);
-        
-        let htmlResultado = 'Solução encontrada: <br>';
+        const { L, U, P, p } = decomposicaoLUComPivoteamento(matrizA);
+
+        const Pb = new Array(size);
+        for (let i = 0; i < size; i++) {
+            Pb[i] = vetorB[p[i]];
+        }
+
+        const y = forwardSubstitution(L, Pb);
+
+        const solucao = backSubstitution(U, y);
+
+        let htmlResultado = formatarMatrizParaHTML("Matriz de Permutação (P)", P);
+        htmlResultado += formatarMatrizParaHTML("Matriz Triangular Inferior (L)", L);
+        htmlResultado += formatarMatrizParaHTML("Matriz Triangular Superior (U)", U);
+
+        htmlResultado += '<div><strong>Solução do Sistema (x):</strong><br>';
         solucao.forEach((val, index) => {
-            if(isNaN(val)){
-               htmlResultado = "Não foi possível encontrar uma solução única para o sistema."
-               return;
+            if (isNaN(val)) {
+                throw new Error("Solução resultou em NaN. Verifique a matriz de entrada.");
             }
             htmlResultado += `<strong>x${index + 1} = ${val.toFixed(4)}</strong><br>`;
         });
+        htmlResultado += '</div>';
+
         resultadoDiv.innerHTML = htmlResultado;
 
     } catch (error) {
